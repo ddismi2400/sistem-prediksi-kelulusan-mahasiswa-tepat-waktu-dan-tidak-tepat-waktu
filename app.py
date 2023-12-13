@@ -37,7 +37,7 @@ app = Flask(__name__)
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'skripsi1'
+app.config['MYSQL_DB'] = 'skripsi'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 mysql = MySQL(app)
 
@@ -130,7 +130,6 @@ def edit_user(id):
                 hash_password = bcrypt.hashpw(password, bcrypt.gensalt())
                 email = request.form['email']
                 posisi = request.form['posisi']
-
                 sql = "UPDATE user SET name=%s, password=%s, email=%s, posisi=%s WHERE id=%s"
                 val = (name, hash_password, email, posisi, id)
                 cur.execute(sql, val)
@@ -141,11 +140,10 @@ def edit_user(id):
             flash('Silahkan Login Dahulu', 'danger')
     return redirect(url_for('pages-login'))
 
-# fungsi untuk menghapus data
 
 @app.route('/hapus_user/<id>', methods=['GET', 'POST'])
 def hapus_user(id):
-    if 'loggedin' in session and session['posisi'] in ['Tata Usaha', 'Prodi']:
+    if 'loggedin' in session and session['posisi'] in ['Tata Usaha']:
         cur = mysql.connection.cursor()
         cur.execute('DELETE FROM user WHERE id=%s', (id))
         mysql.connection.commit()
@@ -153,7 +151,6 @@ def hapus_user(id):
     else:
         flash('Silahkan Login Dahulu', 'danger')
     return redirect(url_for('pages-login'))
-
 
 @app.route('/logout')
 def logout():
@@ -212,30 +209,21 @@ def informatika(cur, df):
     predictions = model1.predict(X)
     hasil_prediksi = pd.Series(predictions).map({0: "Tepat Waktu", 1: "Tidak Tepat Waktu"})
     df['Hasil'] = hasil_prediksi
-
     df = df[['nim', 'nama', 'prodi', 'Lama Penulisan', 'SKS', 'IPK', 'TOEFL', 'Hasil']]
-    
     df.to_excel('dataset/Klasifikasi_industri.xlsx', float_format='%.2f', index=None)
-    
     result = df
-
     # Membuat plot bar dengan dua warna
     result['Hasil'].value_counts().plot(kind='bar', color=['skyblue', 'orange'])
-
     # Menyimpan plot
     plt.savefig('static/assets/img/pred_informatika.png', bbox_inches="tight")
-
     df_list = result.values.tolist()
-
     cur.execute("TRUNCATE TABLE informatika")
     cur.connection.commit()
-
     sql = "INSERT INTO informatika (nim, nama, prodi, lama_penulisan, sks, ipk, toefl, class) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
     for row in df_list:
         val = (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
         cur.execute(sql, val)
     cur.connection.commit()
-
     return result
 
 def kimia(cur, df):
@@ -352,15 +340,13 @@ def tekpang(cur, df):
 
     return result
 
-@app.route("/prediksi", methods=["POST", "GET"])
-def prediksi():
+@app.route("/klasifikasi", methods=["POST", "GET"])
+def klasifikasi():
     if 'loggedin' in session and 'posisi' in session and (session['posisi'] == 'Tata Usaha' or session['posisi'] == 'Prodi'):
-        if session['posisi'] == 'Tata Usaha':
-
             cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
 
             if request.method == 'GET':
-                return render_template('prediksi.html')
+                return render_template('klasifikasi.html')
 
             elif request.method == 'POST':
                 excel_file = request.files["file"]
@@ -391,8 +377,8 @@ def prediksi():
                 # menyisipkan data ke hasil_cluster
                 return render_template('result.html', hasil=hasil)
             else:
-                return render_template('prediksi.html')
-        else:
+                return render_template('klasifikasi.html')
+    else:
             return render_template('pages-error-404.html')
     flash('Silahkan Login Dahulu', 'danger')
     return redirect(url_for('pages-login'))
@@ -405,19 +391,14 @@ def result():
 @app.route("/hasil-infor")
 def hasil_infor():
     cur = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
-    # Eksekusi query SELECT
     cur.execute("SELECT * FROM informatika")
-    # Mengambil hasil eksekusi query dan menyimpannya dalam variabel data
     data = cur.fetchall()
-
     cur.execute(
         "SELECT COUNT(*) as Jumlah FROM informatika WHERE class = 'Tidak Tepat Waktu'")
     data0 = cur.fetchone()
     cur.execute(
         "SELECT COUNT(*) as Jumlah FROM informatika WHERE class = 'Tepat Waktu'")
     data1 = cur.fetchone()
-
-    # menyisipkan data ke tampil_user.html
     return render_template('hasil-infor.html', data=data, data0=data0, data1=data1)
 
 
@@ -627,8 +608,6 @@ def download_tekpang():
     finally:
         cur.close()
     return render_template('download_tekpang.html')
-
-
 
 if __name__ == '__main__':
     app.secret_key = "skripsi"
